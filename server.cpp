@@ -37,7 +37,7 @@ int main()
 
     int iBind;
     int iListen;
-    SOCKET sAcceptSocket;
+    SOCKET sAcceptSocket = INVALID_SOCKET;
 
     // int iSend;
     // char SenderBuffer[DEFAULT_BUFLEN] = "Hello from Server!";
@@ -45,7 +45,7 @@ int main()
     
     int iRecv;
     char RecvBuffer[DEFAULT_BUFLEN];
-    int iRecvBuffer = sizeof(RecvBuffer) + 1;
+    int iRecvBuffer = DEFAULT_BUFLEN;// + 1;
 
     // Step 1: WSA Startup
     err = WSAStartup(wVersionRequested, &wsaData);
@@ -79,7 +79,7 @@ int main()
 
     // Step 5: Listen for incoming connections
     iListen = listen(TCPServerSocket, INT_MAX); // TODO: is using INT_MAX efficient
-        // backlog = 2 = number of connections to create
+        // backlog = INT_MAX = number of connections to create
     if(iListen == SOCKET_ERROR){
         cout << "Listen failed with error " << WSAGetLastError() << endl;
         return 1;
@@ -94,18 +94,20 @@ int main()
     }
     cout << "Connection accepted." << endl;
 
-    // issue: might not be recv all data, might not be print all data, or might be client-side issue
     // Step 8: Receive data from client
-    iRecv = recv(sAcceptSocket, RecvBuffer, iRecvBuffer, 0);
-    if(iRecv == SOCKET_ERROR){
-        cout << "Server receive failed with error " << WSAGetLastError() << endl;
-        return 1;
-    }
+    do{
+        iRecv = recv(sAcceptSocket, RecvBuffer, iRecvBuffer, 0);
+        if ( iRecv > 0 ){
+            printf("Bytes received: %d\n", iRecv);
+            cout << RecvBuffer << endl; // debugging
+        }
+        else if ( iRecv == 0 )
+            printf("Connection closed\n");
+        else
+            cout << "Server receive failed with error " << WSAGetLastError() << endl;
+            return 1;
+    } while(iRecv > 0);
     cout << "Data received successfully." << endl;
-    cout << "DATA RECV: ";
-    for(char i; i < sizeof(RecvBuffer) + 1; i++){
-        cout << RecvBuffer[i];
-    } cout << endl;
 
     // Step 9: Close socket
     iCloseSocket = closesocket(TCPServerSocket);

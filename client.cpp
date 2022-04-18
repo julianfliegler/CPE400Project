@@ -167,7 +167,6 @@ int main(int argc, char **argv)
 
 ///// 
     // file transmission testing using hardcoded file
-    // issue: not sending all data in file
     DWORD dwBytesRead = 0;
     hFile = CreateFile(
             "text.txt",            // file to open
@@ -185,7 +184,6 @@ int main(int argc, char **argv)
     }
     else
         cout << "CreateFile successful." << endl;
-
 
     if(ReadFile(hFile, SenderBuffer, iSenderBuffer, &dwBytesRead, NULL)== FALSE)
     {
@@ -207,7 +205,6 @@ int main(int argc, char **argv)
         cout << "No data read from file" << endl;
     }
 
-    // issue: not sending all data, not sure if client-side error
     // Step 6: Send data to server
     do{ 
         for(int i = 0; i < client.size(); i++){
@@ -221,7 +218,7 @@ int main(int argc, char **argv)
     cout << "Data sent successfully." << endl;
     
     cout << "DATA SENT: ";
-    for(char i; i < strlen(SenderBuffer) + 1; i++){
+    for(char i; i < sizeof(SenderBuffer) + 1; i++){
         cout << SenderBuffer[i];
     } cout << endl;
 

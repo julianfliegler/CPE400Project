@@ -24,15 +24,11 @@ using namespace std;
 
 struct Client
 {
-	//bool con;			        //Set true if a client is connected
-	sockaddr_in TCPServerAdd;	//Client info like ip address
-	SOCKET TCPClientSocket;		//Client socket
-	//fd_set set;			    //used to check if there is data in the socket
-	//int i;				    //any piece of additional info
-    std::ofstream cf;           //file to send
-    string id = "SOCKET";
-    string fileName;
-    const char* cfileToSend;
+	sockaddr_in TCPServerAdd;   // addr of server
+	SOCKET TCPClientSocket;		// client socket
+    string id = "SOCKET";       
+    string fileName;            // associated file
+    const char* cfileToSend;    // LPCSTR version of file to use with Winsock functions
     char SenderBuffer[DEFAULT_BUFLEN];
     int iSenderBuffer = sizeof(SenderBuffer) + 1;
     int checksum;
@@ -74,18 +70,16 @@ int main(int argc, char **argv)
     WSADATA wsaData;
     int iWsaCleanup;
     int err;
-
     int iCloseSocket;
 
     int iConnect;
 
+    /* client doesn't recv anything back */
     // int iRecv;
     // char RecvBuffer[DEFAULT_BUFLEN] = "NULL";
     // int iRecvBuffer = strlen(RecvBuffer); + 1;
 
     int iSend = 0;
-    // char SenderBuffer[DEFAULT_BUFLEN];
-    // int iSenderBuffer = sizeof(SenderBuffer) + 1;
 
     // Step 1: WSA Startup
     err = WSAStartup(wVersionRequested, &wsaData);
@@ -123,6 +117,7 @@ int main(int argc, char **argv)
     }
     cout << "Connection successful." << endl;
 
+    /* client doesn't recv anything back */
     // // Step 5: Receive data from server
     // //for(int i = 0; i < concurrency; i++){
     //     iRecv = recv(client[0].TCPClientSocket, RecvBuffer, iRecvBuffer, 0); // only recv over one socket
@@ -137,8 +132,8 @@ int main(int argc, char **argv)
     //     cout << RecvBuffer[i];
     // } cout << endl;
 
-    // get files from folder
-    /* source: https://www.cplusplus.com/forum/general/85870/ */
+    // Step 5: Get files from folder
+    /* ref: https://www.cplusplus.com/forum/general/85870/ */
     string data;  
     HANDLE hFind;
     WIN32_FIND_DATAA FindFileData; 
@@ -150,34 +145,21 @@ int main(int argc, char **argv)
         do
         {
             if (FindFileData.dwFileAttributes != FILE_ATTRIBUTE_DIRECTORY){
-                // if(TransmitFile(client[i].TCPClientSocket, hFind, 0, 0, NULL, NULL, TF_USE_KERNEL_APC & TF_WRITE_BEHIND) == true)
-                // {
-                //     cout << "TransmitFile successful." << endl;
-                // }
-                // else
-                // {
-                //     cout << "TransmitFile failed with error " << WSAGetLastError() << endl;
-                //     return 1;
-                // }
                 client[i].fileName = FindFileData.cFileName;
-                data += FindFileData.cFileName;
-                data += '\n'; 
+                // data += FindFileData.cFileName;
+                // data += '\n'; 
                 i++;
-            }
-                
+            } 
         } while( FindNextFileA( hFind, &FindFileData ) && i < client.size());  
-
         FindClose( hFind );  
     }
     //cout << data;
     //system("PAUSE"); 
     
     HANDLE hFile;
-
-    string fileToSend; // temp container to easily perform str concat
-    const char* cfileToSend;
+    string fileToSend;  // temp container to easily perform str concat
     DWORD dwBytesRead = 0;
-    // get files
+    
     for(int i=0; i<client.size(); i++)
     {
         fileToSend = "";
@@ -214,7 +196,7 @@ int main(int argc, char **argv)
 
         if (dwBytesRead > 0)
         {
-            // NULL character
+            // append NULL character
             client[i].SenderBuffer[dwBytesRead+1]='\0';
             cout << "String read from file has " << dwBytesRead << " bytes" << endl;
         }
@@ -229,7 +211,7 @@ int main(int argc, char **argv)
     do{ 
         iSend = send(client[index].TCPClientSocket, client[index].SenderBuffer, client[index].iSenderBuffer, 0);
         cout << "isend = " << iSend << endl;
-        cout << "DATA SENT: " << client[index].SenderBuffer << endl;
+        //cout << "DATA SENT: " << client[index].SenderBuffer << endl;
         //system("PAUSE");
         if(iSend == SOCKET_ERROR){
             cout << "Client send failed with error " << WSAGetLastError() << endl;
@@ -257,6 +239,5 @@ int main(int argc, char **argv)
     }
     cout << "Cleanup successful." << endl;
     
-   // system("PAUSE");
     return 0;
 }

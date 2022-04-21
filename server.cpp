@@ -31,21 +31,33 @@ int main()
     SOCKET TCPServerSocket;
     int iCloseSocket;
 
+    /* might need to use sets to be able to use select(), to avoid blocking on accept() */
+    // FD_SET* TCPServerSocket;
+    // FD_ZERO(&TCPServerSocket);
+    // FD_SET(sockfd,&TCPServerSocket);
+
+    /* blocking not working: recv throws error */
+    // u_long iMode = 1; // non-blocking
+    // int iResult = ioctlsocket(TCPServerSocket, FIONBIO, &iMode);
+    // if (iResult != NO_ERROR)
+    //     cout << "ioctlsocket failed with error " << iResult << endl;
+
     struct sockaddr_in TCPServerAdd;
     struct sockaddr_in TCPClientAdd;
     int iTCPClientAdd = sizeof(TCPClientAdd);
 
     int iBind;
     int iListen;
-    SOCKET sAcceptSocket = INVALID_SOCKET;
+    SOCKET sAcceptSocket;
 
+    /* server not supposed to send anything back */
     // int iSend;
     // char SenderBuffer[DEFAULT_BUFLEN] = "Hello from Server!";
     // int iSenderBuffer = strlen(SenderBuffer) + 1;
     
-    int iRecv;
+    int iRecv = 0;
     char RecvBuffer[DEFAULT_BUFLEN];
-    int iRecvBuffer = DEFAULT_BUFLEN;// + 1;
+    int iRecvBuffer = sizeof(RecvBuffer);// + 1;
 
     // Step 1: WSA Startup
     err = WSAStartup(wVersionRequested, &wsaData);
@@ -86,27 +98,87 @@ int main()
     }
     cout << "Listen successful." << endl;
 
+    /* need to accept connection for each socket, done below */
     // Step 6: Accept connection
-    sAcceptSocket = accept(TCPServerSocket, (sockaddr*)&TCPClientAdd, &iTCPClientAdd);
-    if(sAcceptSocket == SOCKET_ERROR){
-        cout << "Accept failed with error " << WSAGetLastError() << endl;
-        return 1;
-    }
-    cout << "Connection accepted." << endl;
+    // sAcceptSocket = accept(TCPServerSocket, (sockaddr*)&TCPClientAdd, &iTCPClientAdd);
+    // if(sAcceptSocket == SOCKET_ERROR){
+    //     cout << "Accept failed with error " << WSAGetLastError() << endl;
+    //     return 1;
+    // }
+    // cout << "Connection accepted." << endl;
+
+    /* nonblocking not working, recv throws error */
+    // unsigned long iMode = 1; // non-blocking
+    // int iResult;
+    // iResult = ioctlsocket(sAcceptSocket, FIONBIO, &iMode);
+    // if (iResult != NO_ERROR)
+    // {
+    //     cout << "ioctlsocket failed with error " << WSAGetLastError() << endl;
+    //     return 1;
+    // }
+
+    /* getting data another way (below), but keeping just in case */
+    // Step 8: Receive data from client
+    //source: https://www.cplusplus.com/forum/windows/59255/
+    // while((iRecv = recv(sAcceptSocket, RecvBuffer, iRecvBuffer, 0)) != 0) // continue till disconnected
+    // {
+    //     cout << "irecv = " << iRecv << endl;
+    //     if(iRecv == -1)
+    //     {
+    //         if(WSAGetLastError() == WSAEMSGSIZE) // client has more data to send than the buffer can get in one call
+    //         {
+    //             cout << "continue" << endl;
+    //             continue; // iterate again to get more data
+    //         } else {
+    //             // some other error
+    //             cout << "recv failed: ERROR " << WSAGetLastError();
+    //             return 1;
+    //         }
+    //     } else {
+    //         // if iResult is numeric then it has retrieved what it needed and no more is currently available so if we call recv() again it will block.
+    //         printf("Bytes received: %d\n", iRecv);
+    //         cout << RecvBuffer << endl;
+    //         memset(RecvBuffer, 0, sizeof RecvBuffer); // empty buffer
+    //         break;
+    //     }
+    // }
+    // cout << "Connection closed." << endl;
+
+    /* tried to use select(), need to use fd sets */
+    // auto timeout = timeval();
+    // timeout.tv_sec = 0;
+    // timeout.tv_usec = 100;
+    // int retVal = 0;
 
     // Step 8: Receive data from client
     do{
+        /* need to make fd_sets in order to work */
+        // retVal = select(0, NULL, NULL, NULL, &timeout);
+        // if(retVal == 0) break;
+        // cout << "retVal = " << retVal << endl;
+
+        /* accept blocks when no pending connections */
+        sAcceptSocket = accept(TCPServerSocket, (sockaddr*)&TCPClientAdd, &iTCPClientAdd);
+        cout << "sAccept = " << sAcceptSocket << endl;
+        if(sAcceptSocket == SOCKET_ERROR){
+            cout << "Accept failed with error " << WSAGetLastError() << endl;
+            return 1;
+        }
+        cout << "Connection accepted." << endl;
+    
         iRecv = recv(sAcceptSocket, RecvBuffer, iRecvBuffer, 0);
         if ( iRecv > 0 ){
-            printf("Bytes received: %d\n", iRecv);
+            cout << "Bytes received: " << iRecv << endl;
             cout << RecvBuffer << endl; // debugging
+            memset(RecvBuffer, 0, sizeof RecvBuffer); // empty buffer
         }
         else if ( iRecv == 0 )
-            printf("Connection closed\n");
-        else
+            cout << "Connection closed." << endl;
+        else{
             cout << "Server receive failed with error " << WSAGetLastError() << endl;
             return 1;
-    } while(iRecv > 0);
+        }
+    } while(iRecv > 0 && sAcceptSocket > 0);
     cout << "Data received successfully." << endl;
 
     // Step 9: Close socket
@@ -125,6 +197,6 @@ int main()
     }
     cout << "Cleanup successful." << endl;
 
-    system("PAUSE");
+    // system("PAUSE");
     return 0;
 }

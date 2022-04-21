@@ -31,13 +31,18 @@ struct Client
 	//int i;				    //any piece of additional info
     std::ofstream cf;           //file to send
     string id = "SOCKET";
+    string fileName;
+    const char* cfileToSend;
+    char SenderBuffer[DEFAULT_BUFLEN];
+    int iSenderBuffer = sizeof(SenderBuffer) + 1;
+    int checksum;
 };
 
 int main(int argc, char **argv)
 {   
     int concurrency = 1;
     vector<Client> client;
-    char* filePath;
+    string filePath;
 
     // Validate the parameters
     if(argc < 2) {
@@ -58,7 +63,11 @@ int main(int argc, char **argv)
     cout << "\t\t-------- TCP CLIENT --------" << endl;
     cout << endl;
 
-    client.resize(concurrency);
+    client.resize(concurrency); 
+
+    string nfilePath = filePath;                // hold original path, no asterisk
+    filePath.append("*");                       // add asterisk for FindFirstFile
+    const char* cfilePath = filePath.c_str();   // convert to LPCSTR to work with C++ ftns
 
     // local vars
     WORD wVersionRequested = MAKEWORD(2, 2); //MAKEWORD(lowbyte, highbyte)
@@ -74,9 +83,9 @@ int main(int argc, char **argv)
     // char RecvBuffer[DEFAULT_BUFLEN] = "NULL";
     // int iRecvBuffer = strlen(RecvBuffer); + 1;
 
-    int iSend;
-    char SenderBuffer[DEFAULT_BUFLEN];
-    int iSenderBuffer = sizeof(SenderBuffer) + 1;
+    int iSend = 0;
+    // char SenderBuffer[DEFAULT_BUFLEN];
+    // int iSenderBuffer = sizeof(SenderBuffer) + 1;
 
     // Step 1: WSA Startup
     err = WSAStartup(wVersionRequested, &wsaData);
@@ -129,16 +138,13 @@ int main(int argc, char **argv)
     // } cout << endl;
 
     // get files from folder
-    // issue: trasmit file not working
     /* source: https://www.cplusplus.com/forum/general/85870/ */
-    static const char* folderPath = "C:\\users\\17752\\desktop\\test\\*";
     string data;  
     HANDLE hFind;
-    HANDLE hFile;
     WIN32_FIND_DATAA FindFileData; 
     int i = 0;
 
-    hFind = FindFirstFileA(folderPath, &FindFileData);
+    hFind = FindFirstFileA(cfilePath, &FindFileData);
     if (hFind != INVALID_HANDLE_VALUE) 
     {
         do
@@ -153,6 +159,7 @@ int main(int argc, char **argv)
                 //     cout << "TransmitFile failed with error " << WSAGetLastError() << endl;
                 //     return 1;
                 // }
+                client[i].fileName = FindFileData.cFileName;
                 data += FindFileData.cFileName;
                 data += '\n'; 
                 i++;
@@ -162,65 +169,75 @@ int main(int argc, char **argv)
 
         FindClose( hFind );  
     }
-    cout << data;
-    //system("PAUSE");    
+    //cout << data;
+    //system("PAUSE"); 
+    
+    HANDLE hFile;
 
-///// 
-    // file transmission testing using hardcoded file
+    string fileToSend; // temp container to easily perform str concat
+    const char* cfileToSend;
     DWORD dwBytesRead = 0;
-    hFile = CreateFile(
-            "text.txt",            // file to open
-            GENERIC_READ,          // open for reading
-            FILE_SHARE_READ,       // share for reading
-            NULL,                  // default security
-            OPEN_EXISTING,         // existing file only
-            FILE_ATTRIBUTE_NORMAL, // normal file
-            NULL);                 // no attr. template
+    // get files
+    for(int i=0; i<client.size(); i++)
+    {
+        fileToSend = "";
+        fileToSend += nfilePath;            // add file path
+        fileToSend += client[i].fileName;   // add file name
+        client[i].cfileToSend = fileToSend.c_str();   // convert back to LPCSTR to use with CreateFile
 
-    if (hFile == INVALID_HANDLE_VALUE)
-    {
-        cout << "CreateFile failed with error " << WSAGetLastError() << endl;
-        return 1;
-    }
-    else
-        cout << "CreateFile successful." << endl;
+        dwBytesRead = 0;
+        hFile = CreateFile(
+                client[i].cfileToSend, // file to open
+                GENERIC_READ,          // open for reading
+                FILE_SHARE_READ,       // share for reading
+                NULL,                  // default security
+                OPEN_EXISTING,         // existing file only
+                FILE_ATTRIBUTE_NORMAL, // normal file
+                NULL);                 // no attr. template
 
-    if(ReadFile(hFile, SenderBuffer, iSenderBuffer, &dwBytesRead, NULL)== FALSE)
-    {
-        cout << "ReadFile failed with error " << WSAGetLastError() << endl;
-        CloseHandle(hFile);
-        return 1;
-    }
-      else
-        cout << "ReadFile successful." << endl;
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            cout << "CreateFile failed with error " << WSAGetLastError() << endl;
+            return 1;
+        }
+        else
+            cout << "CreateFile successful." << endl;
 
-    if (dwBytesRead > 0)
-    {
-        // NULL character
-        SenderBuffer[dwBytesRead+1]='\0';
-        cout << "String read from file has " << dwBytesRead << " bytes" << endl;
-    }
-    else
-    {
-        cout << "No data read from file" << endl;
-    }
+        if(ReadFile(hFile, client[i].SenderBuffer, client[i].iSenderBuffer, &dwBytesRead, NULL) == FALSE)
+        {
+            cout << "ReadFile failed with error " << WSAGetLastError() << endl;
+            CloseHandle(hFile);
+            return 1;
+        }
+        else
+            cout << "ReadFile successful." << endl;
+
+        if (dwBytesRead > 0)
+        {
+            // NULL character
+            client[i].SenderBuffer[dwBytesRead+1]='\0';
+            cout << "String read from file has " << dwBytesRead << " bytes" << endl;
+        }
+        else
+        {
+            cout << "No data read from file" << endl;
+        }
+    }  
 
     // Step 6: Send data to server
+    int index = 0;
     do{ 
-        for(int i = 0; i < client.size(); i++){
-            iSend = send(client[i].TCPClientSocket, SenderBuffer, iSenderBuffer, 0);
-            if(iSend == SOCKET_ERROR){
-                cout << "Client send failed with error " << WSAGetLastError() << endl;
-                return 1;
-            }
+        iSend = send(client[index].TCPClientSocket, client[index].SenderBuffer, client[index].iSenderBuffer, 0);
+        cout << "isend = " << iSend << endl;
+        cout << "DATA SENT: " << client[index].SenderBuffer << endl;
+        //system("PAUSE");
+        if(iSend == SOCKET_ERROR){
+            cout << "Client send failed with error " << WSAGetLastError() << endl;
+            return 1;
         }
-    } while(iSend > 0);
+        index++;
+    } while(iSend > 0 && index < client.size());
     cout << "Data sent successfully." << endl;
-    
-    cout << "DATA SENT: ";
-    for(char i; i < sizeof(SenderBuffer) + 1; i++){
-        cout << SenderBuffer[i];
-    } cout << endl;
 
     // Step 7: Close socket
     for(int i = 0; i < client.size(); i++){
@@ -240,6 +257,6 @@ int main(int argc, char **argv)
     }
     cout << "Cleanup successful." << endl;
     
-    system("PAUSE");
+   // system("PAUSE");
     return 0;
 }

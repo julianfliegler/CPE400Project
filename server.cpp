@@ -31,17 +31,11 @@ int main()
     SOCKET TCPServerSocket;
     int iCloseSocket;
 
-    /* might need to use sets to be able to use select(), to avoid blocking on accept() */
+    /* keeping just in case need to use */
     // FD_SET* TCPServerSocket;
     // FD_ZERO(&TCPServerSocket);
     // FD_SET(sockfd,&TCPServerSocket);
-
-    /* blocking not working: recv throws error */
-    // u_long iMode = 1; // non-blocking
-    // int iResult = ioctlsocket(TCPServerSocket, FIONBIO, &iMode);
-    // if (iResult != NO_ERROR)
-    //     cout << "ioctlsocket failed with error " << iResult << endl;
-
+    
     struct sockaddr_in TCPServerAdd;
     struct sockaddr_in TCPClientAdd;
     int iTCPClientAdd = sizeof(TCPClientAdd);

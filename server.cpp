@@ -17,6 +17,9 @@
 
 using namespace std;
 
+// prototypes
+int CalcChecksum(char buffer[]);
+
 int main()
 {
     cout << "\t\t-------- TCP SERVER --------" << endl;
@@ -113,7 +116,8 @@ int main()
         
         if ( iRecv > 0 ){
             cout << "Bytes received: " << iRecv << endl;
-            cout << RecvBuffer << endl; // debugging
+            //cout << RecvBuffer << endl; // debugging
+            CalcChecksum(RecvBuffer);
             memset(RecvBuffer, 0, sizeof RecvBuffer); // empty buffer
             cout << endl;
         }
@@ -158,4 +162,20 @@ int main()
     cout << "Cleanup successful." << endl;
 
     return 0;
+}
+
+int CalcChecksum(char buffer[DEFAULT_BUFLEN]){
+    int checksum = 0;
+    
+    // sum of bytes
+    for(int i = 0; i < DEFAULT_BUFLEN; i++){
+        checksum += buffer[i];
+    }
+
+    // take 2's complement
+    // checksum =~ checksum;   // bitwise inversion
+    // checksum++;             
+
+    cout << "checksum = " << checksum << endl;
+    return checksum;
 }

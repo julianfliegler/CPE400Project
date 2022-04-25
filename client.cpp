@@ -34,11 +34,16 @@ struct Client
     int checksum;
 };
 
+// prototypes
+int CalcChecksum(Client c);
+
 int main(int argc, char **argv)
 {   
     int concurrency = 1;
     vector<Client> client;
     string filePath;
+
+    // TODO: check if concurrency greater than number of files (out of box?)
 
     // Validate the parameters
     if(argc < 2) {
@@ -183,7 +188,7 @@ int main(int argc, char **argv)
             return 1;
         }
         else
-            cout << "CreateFile successful." << endl;
+            //cout << "CreateFile successful." << endl;
 
         if(ReadFile(hFile, client[i].SenderBuffer, client[i].iSenderBuffer, &dwBytesRead, NULL) == FALSE)
         {
@@ -192,13 +197,13 @@ int main(int argc, char **argv)
             return 1;
         }
         else
-            cout << "ReadFile successful." << endl;
+            //cout << "ReadFile successful." << endl;
 
         if (dwBytesRead > 0)
         {
             // append NULL character
             client[i].SenderBuffer[dwBytesRead+1]='\0';
-            cout << "String read from file has " << dwBytesRead << " bytes" << endl;
+            //cout << "String read from file has " << dwBytesRead << " bytes" << endl;
         }
         else
         {
@@ -206,11 +211,15 @@ int main(int argc, char **argv)
         }
     }  
 
+
+
     // Step 6: Send data to server
     int index = 0;
     do{ 
+        // calc checksum
+        CalcChecksum(client[index]);
         iSend = send(client[index].TCPClientSocket, client[index].SenderBuffer, client[index].iSenderBuffer, 0);
-        cout << "isend = " << iSend << endl;
+        //cout << "isend = " << iSend << endl;
         //cout << "DATA SENT: " << client[index].SenderBuffer << endl;
         //system("PAUSE");
         if(iSend == SOCKET_ERROR){
@@ -240,4 +249,20 @@ int main(int argc, char **argv)
     cout << "Cleanup successful." << endl;
     
     return 0;
+}
+
+int CalcChecksum(Client c){
+    int checksum = 0;
+
+    // sum of bytes
+    for(int i = 0; i < sizeof(c.SenderBuffer); i++){
+        checksum += c.SenderBuffer[i];
+    }
+
+    // take 2's complement
+    // checksum =~ checksum;   // bitwise inversion
+    // checksum++;             
+
+    cout << "checksum = " << checksum << endl;
+    return checksum;
 }

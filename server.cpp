@@ -1,3 +1,5 @@
+// ref: https://www.youtube.com/watch?v=TP5Q0cs6uNo&t=1228s
+
 #undef UNICODE
 
 #define WIN32_LEAN_AND_MEAN
@@ -46,11 +48,6 @@ int main()
     int iBind;
     int iListen;
     SOCKET sAcceptSocket;
-
-    /* server not supposed to send anything back */
-    // int iSend;
-    // char SenderBuffer[DEFAULT_BUFLEN] = "Hello from Server!";
-    // int iSenderBuffer = strlen(SenderBuffer) + 1;
     
     int iRecv = 0;
     char RecvBuffer[DEFAULT_BUFLEN];

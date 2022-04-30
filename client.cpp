@@ -1,3 +1,5 @@
+// ref: https://www.youtube.com/watch?v=TP5Q0cs6uNo&t=1228s
+
 #undef UNICODE
 
 #define WIN32_LEAN_AND_MEAN
@@ -15,12 +17,16 @@
 #include <string>
 #include <vector>
 #include <MSWSock.h>
+#include <cmath>
+//#include <filesystem>
+		
 
 #define DEFAULT_BUFLEN 8096
 #define DEFAULT_PORT 5050
 #define DEFAULT_ADDR "127.0.0.1"
 
 using namespace std;
+//namespace fs = std::filesystem;
 
 struct Client
 {
@@ -36,6 +42,8 @@ struct Client
 
 // prototypes
 int CalcChecksum(Client c);
+bool isInt(float k);
+//size_t numFilesInDirectory(fs::path path);
 
 int main(int argc, char **argv)
 {   
@@ -52,8 +60,9 @@ int main(int argc, char **argv)
     }
     else if(argc < 3){
         concurrency = 1;
+        filePath = argv[1];
     }
-    else if((int)argv[2] < 1){ // TODO: check if concurrency is int
+    else if(atoi(argv[2]) < 1 || !isInt(atof(argv[2]))){ 
         cout << "Error: Concurrency must be positive integer." << endl;
         return 1;
     }
@@ -66,7 +75,7 @@ int main(int argc, char **argv)
 
     client.resize(concurrency); 
 
-    string nfilePath = filePath;                // hold original path, no asterisk
+    string origFilePath = filePath;                // hold original path, no asterisk
     filePath.append("*");                       // add asterisk for FindFirstFile
     const char* cfilePath = filePath.c_str();   // convert to LPCSTR to work with C++ ftns
 
@@ -78,12 +87,6 @@ int main(int argc, char **argv)
     int iCloseSocket;
 
     int iConnect;
-
-    /* client doesn't recv anything back */
-    // int iRecv;
-    // char RecvBuffer[DEFAULT_BUFLEN] = "NULL";
-    // int iRecvBuffer = strlen(RecvBuffer); + 1;
-
     int iSend = 0;
 
     // Step 1: WSA Startup
@@ -122,21 +125,6 @@ int main(int argc, char **argv)
     }
     cout << "Connection successful." << endl;
 
-    /* client doesn't recv anything back */
-    // // Step 5: Receive data from server
-    // //for(int i = 0; i < concurrency; i++){
-    //     iRecv = recv(client[0].TCPClientSocket, RecvBuffer, iRecvBuffer, 0); // only recv over one socket
-    //     if(iRecv == SOCKET_ERROR){
-    //         cout << "Client receive failed with error " << WSAGetLastError() << endl;
-    //         return 1;
-    //     }
-    // //}
-    // cout << "Data received successfully." << endl;
-    // cout << "DATA RECV: ";
-    // for(char i; i < strlen(RecvBuffer) + 1; i++){
-    //     cout << RecvBuffer[i];
-    // } cout << endl;
-
     // Step 5: Get files from folder
     /* ref: https://www.cplusplus.com/forum/general/85870/ */
     string data;  
@@ -168,7 +156,7 @@ int main(int argc, char **argv)
     for(int i=0; i<client.size(); i++)
     {
         fileToSend = "";
-        fileToSend += nfilePath;            // add file path
+        fileToSend += origFilePath;            // add file path
         fileToSend += client[i].fileName;   // add file name
         client[i].cfileToSend = fileToSend.c_str();   // convert back to LPCSTR to use with CreateFile
 
@@ -266,3 +254,16 @@ int CalcChecksum(Client c){
     cout << "checksum = " << checksum << endl;
     return checksum;
 }
+
+// ref: https://stackoverflow.com/questions/7646512/testing-if-given-number-is-integer
+bool isInt(float k)
+{
+  return floor(k) == k;
+}
+
+// ref: https://stackoverflow.com/questions/41304891/how-to-count-the-number-of-files-in-a-directory-using-standard
+// size_t numFilesInDirectory(fs::path path)
+// {
+//     using fs::directory_iterator;
+//     return std::distance(directory_iterator(path), directory_iterator{});
+// }

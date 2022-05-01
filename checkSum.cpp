@@ -1,18 +1,53 @@
-uint16_t
-UdpHeader::CalculateHeaderChecksum (uint16_t size) const
-{
-  Buffer buf = Buffer ((2 * Address::MAX_SIZE) + 8);
-  buf.AddAtStart ((2 * Address::MAX_SIZE) + 8);
-  Buffer::Iterator it = buf.Begin ();
-  uint32_t hdrSize = 0;
+include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-  WriteTo (it, m_source);
-  WriteTo (it, m_destination);
-  if (Ipv4Address::IsMatchingType (m_source))
-    {
-      it.WriteU8 (0); /* protocol */
-      it.WriteU8 (m_protocol); /* protocol */
-      it.WriteU8 (size >> 8); /* length */
-      it.WriteU8 (size & 0xff); /* length */
-      hdrSize = 12;
+#include <openssl/md5.h>
+
+unsigned char result[MD5_DIGEST_LENGTH];
+
+// Print the MD5 sum as hex-digits.
+void print_md5_sum(unsigned char* md) {
+    int i;
+    for(i=0; i <MD5_DIGEST_LENGTH; i++) {
+            printf("%02x",md[i]);
     }
+}
+
+// Get the size of the file by its file descriptor
+unsigned long get_size_by_fd(int fd) {
+    struct stat statbuf;
+    if(fstat(fd, &statbuf) < 0) exit(-1);
+    return statbuf.st_size;
+}
+
+int main(int argc, char *argv[]) {
+    int file_descript;
+    unsigned long file_size;
+    char* file_buffer;
+
+    if(argc != 2) { 
+            printf("Must specify the file\n");
+            exit(-1);
+    }
+    printf("using file:\t%s\n", argv[1]);
+
+    file_descript = open(argv[1], O_RDONLY);
+    if(file_descript < 0) exit(-1);
+
+    file_size = get_size_by_fd(file_descript);
+    printf("file size:\t%lu\n", file_size);
+
+    file_buffer = mmap(0, file_size, PROT_READ, MAP_SHARED, file_descript, 0);
+    MD5((unsigned char*) file_buffer, file_size, result);
+    munmap(file_buffer, file_size); 
+
+    print_md5_sum(result);
+    printf("  %s\n", argv[1]);
+
+    return 0;
+}

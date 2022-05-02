@@ -101,8 +101,10 @@ int main(int argc, char **argv)
     cout << "WSAStartup successful." << endl;
 
     // Step 2: Create sockets
+    int k = 1;
     for(int i = 0; i < client.size(); i++){
-        client[i].id += to_string(i);
+        client[i].id += to_string(k);
+        k++;
         client[i].TCPClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if(client[i].TCPClientSocket == INVALID_SOCKET){
             cout << "TCP client " << client[i].id << " creation failed with error " << WSAGetLastError() << endl;
@@ -216,19 +218,18 @@ int main(int argc, char **argv)
 }
 
 int CalcChecksum(Client c){
-    int checksum = 0;
-
-    // sum of bytes
-    for(int i = 0; i < sizeof(c.SenderBuffer); i++){
-        checksum += c.SenderBuffer[i];
-    }
-
-    // take 2's complement
-    // checksum =~ checksum;   // bitwise inversion
-    // checksum++;
-
-    cout << "checksum = " << checksum << endl;
-    return checksum;
+    // variables
+    int count;
+    int Sum = 0;
+    // checks if the count is less than te default buffer 
+    // adds the total sum
+    //  switches the sums's sign
+    for (count = 0; count < sizeof(c.SenderBuffer); count++)
+        Sum = Sum + c.SenderBuffer[count];
+    Sum = -Sum;
+    cout << "checksum = " << Sum << endl;
+    // returns sum
+    return (Sum);
 }
 
 // ref: https://stackoverflow.com/questions/7646512/testing-if-given-number-is-integer
@@ -278,7 +279,9 @@ void mReadAndSend(HANDLE fHandle, Client cl){
         CalcChecksum(cl);
 
         iSend = send(cl.TCPClientSocket, cl.SenderBuffer, cl.iSenderBuffer, 0);
+        //cout << "DATA SENT: " << cl.SenderBuffer << endl; // debugging
         cout << endl;
+        //system("pause");
 
         if(iSend == SOCKET_ERROR)
         {

@@ -103,15 +103,21 @@ int main()
     if (iResult != NO_ERROR)
     cout << "ioctlsocket failed with error " << iResult << endl;
 
+    //u_long iMode = 1; // non-blocking
+    // iResult = ioctlsocket(sAcceptSocket, FIONBIO, &iMode);
+    // if (iResult != NO_ERROR)
+    //     cout << "ioctlsocket failed with error " << iResult << endl;
+
     do {
         // Step 7: Receive data from client
         //ref: https://www.cplusplus.com/forum/windows/59255/
         do{
             iRecv = recv(sAcceptSocket, RecvBuffer, iRecvBuffer, 0);
+            //cout << iRecv << endl;
 
             if (iRecv > 0 && strlen(RecvBuffer) > 2){  
                 cout << "File received." << endl;
-                //cout << RecvBuffer << endl; // debugging
+                //cout << "DATA RECV: " << RecvBuffer << endl; // debugging
                 CalcChecksum(RecvBuffer);
                 memset(RecvBuffer, 0, sizeof(RecvBuffer)); // empty buffer
                 cout << endl;
@@ -131,7 +137,10 @@ int main()
                 else{
                     // some other error
                     cout << "Server receive failed with error " << WSAGetLastError() << endl;
-                    return 1;
+                    Sleep(50);
+                    continue;
+                    //break;
+                    //return 1;
                 }
             }
         } while(iRecv > 0);
@@ -167,17 +176,16 @@ int main()
 }
 
 int CalcChecksum(char buffer[DEFAULT_BUFLEN]){
-    int checksum = 0;
-    
-    // sum of bytes
-    for(int i = 0; i < DEFAULT_BUFLEN; i++){
-        checksum += buffer[i];
-    }
-
-    // take 2's complement
-    // checksum =~ checksum;   // bitwise inversion
-    // checksum++;             
-
-    cout << "checksum = " << checksum << endl;
-    return checksum;
+    // variables
+    int count;
+    int Sum = 0;
+    // checks if the count is less than te default buffer 
+    // adds the total sum
+    //  switches the sums's sign 
+    for (count = 0; count < DEFAULT_BUFLEN; count++)
+        Sum = Sum + buffer[count];
+    Sum = -Sum;
+    cout << "checksum = " << Sum << endl;
+    // returns sum 
+    return (Sum );
 }

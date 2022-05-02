@@ -1,9 +1,13 @@
-// ref: https://www.youtube.com/watch?v=TP5Q0cs6uNo&t=1228s
-
-#undef UNICODE
-
-#define WIN32_LEAN_AND_MEAN
-#define _WIN32_WINNT 0x501
+/*
+===============================================
+Title:   server.cpp
+Authors: Julian Fliegler, Allison Rose Johnson
+Date:    2 May 2022
+===============================================
+*/
+        
+#define WIN32_LEAN_AND_MEAN     // exclude rarely used Windows headers
+#define _WIN32_WINNT 0x0501     // version at least Windows XP
 
 #include <windows.h>
 #include <winsock2.h>
@@ -27,6 +31,7 @@ int main()
     cout << "\t\t-------- TCP SERVER --------" << endl;
     cout << endl;
 
+    // ref: https://www.youtube.com/watch?v=TP5Q0cs6uNo&t=1228s
     // local vars
     WORD wVersionRequested = MAKEWORD(2, 2); //MAKEWORD(lowbyte, highbyte)
     WSADATA wsaData;
@@ -184,7 +189,7 @@ int CalcChecksum(char buffer[DEFAULT_BUFLEN]){
     //  switches the sums's sign 
     for (count = 0; count < DEFAULT_BUFLEN; count++)
         Sum = Sum + buffer[count];
-    Sum = -Sum;
+  
     cout << "checksum = " << Sum << endl;
     // returns sum 
     return (Sum );

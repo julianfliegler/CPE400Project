@@ -1,18 +1,32 @@
-uint16_t
-UdpHeader::CalculateHeaderChecksum (uint16_t size) const
-{
-  Buffer buf = Buffer ((2 * Address::MAX_SIZE) + 8);
-  buf.AddAtStart ((2 * Address::MAX_SIZE) + 8);
-  Buffer::Iterator it = buf.Begin ();
-  uint32_t hdrSize = 0;
 
-  WriteTo (it, m_source);
-  WriteTo (it, m_destination);
-  if (Ipv4Address::IsMatchingType (m_source))
-    {
-      it.WriteU8 (0); /* protocol */
-      it.WriteU8 (m_protocol); /* protocol */
-      it.WriteU8 (size >> 8); /* length */
-      it.WriteU8 (size & 0xff); /* length */
-      hdrSize = 12;
-    }
+// this is for client.cpp //
+int Checksum(Client c)
+ {
+  // variables
+     int count;
+     int Sum = 0;
+    // checks if the count is less than te default buffer 
+    // adds the total sum
+    //  switches the sums's sign
+     for (count = 0; count < sizeof(c.SenderBuffer); count++)
+         Sum = Sum + c.SenderBuffer[count];
+     Sum = -Sum;
+    // returns sum
+     return (Sum);
+ }
+
+// this for server.cpp //
+int Checksum(char buffer[DEFAULT_BUFLEN])
+ {
+   // variables
+     int count;
+     int Sum = 0;
+    // checks if the count is less than te default buffer 
+    // adds the total sum
+   //  switches the sums's sign 
+     for (count = 0; count < DEFAULT_BUFLEN; count++)
+         Sum = Sum + buffer[count];
+     Sum = -Sum;
+ // returns sum 
+     return (Sum );
+ }

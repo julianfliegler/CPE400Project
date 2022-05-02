@@ -18,23 +18,12 @@
 #include <vector>
 #include <MSWSock.h>
 #include <cmath>
-//#include <filesystem>
-
-// #include <sys/types.h>
-// #include <sys/stat.h>
-// #include <sys/mman.h>
-// #include <fcntl.h>
-// #include <openssl/md5.h>
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 5050
 #define DEFAULT_ADDR "127.0.0.1"
 
-// #define MD5_DIGEST_LENGTH 512
-// unsigned char result[MD5_DIGEST_LENGTH];
-
 using namespace std;
-//namespace fs = std::filesystem;
 
 struct Client
 {
@@ -180,21 +169,6 @@ int main(int argc, char **argv)
     //cout << data;
     //system("PAUSE");
 
-    string tmp = to_string(concurrency);
-    char const *cCon = tmp.c_str();
-    cout << cCon << endl;
-
-
-    int iSend = send(client[0].TCPClientSocket, cCon, sizeof(cCon), 0);
-    cout << "DATA SENT: " << cCon << endl;
-    //system("pause");
-
-    if(iSend == SOCKET_ERROR)
-    {
-        cout << "Client send failed with error " << WSAGetLastError() << endl;
-        exit(1);
-    }
-
     HANDLE hFile;
     string fileToSend;  // temp container to easily perform str concat
 
@@ -218,31 +192,6 @@ int main(int argc, char **argv)
         }
         memset(client[i].SenderBuffer, 0, sizeof client[i].SenderBuffer); // empty buffer
     }
-
-    //md5
-    // file_buffer = mmap(0, file_size, PROT_READ, MAP_SHARED, file_descript, 0);
-    // MD5((unsigned char*) file_buffer, file_size, result);
-    // munmap(file_buffer, file_size);
-    // print_md5_sum(result);
-    // printf("  %s\n", argv[1]);
-
-    // Step 6: Send data to server
-    // int index = 0;
-    // do{
-    //     // calc checksum
-    //     //CalcChecksum(client[index]);
-
-    //     // iSend = send(client[index].TCPClientSocket, client[index].SenderBuffer, client[index].iSenderBuffer, 0);
-
-    //     //cout << "isend = " << iSend << endl;
-    //     //cout << "DATA SENT: " << client[index].SenderBuffer << endl;
-    //     //system("PAUSE");
-
-     
-    //     index++;
-
-    // } while(iSend > 0);
-
     cout << "Data sent successfully." << endl;
 
     // Step 7: Close socket
@@ -288,17 +237,6 @@ bool isInt(float k)
   return floor(k) == k;
 }
 
-// void handleFilePath(string fPath, Client *cl, int j){
-//     string fileToSend;  // temp container to easily perform str concat
-    
-//     fileToSend = "";
-//     fileToSend += fPath;            // add file path
-//     fileToSend += cl->fileName[j];   // add file name
-//     cl->cFilePath.push_back(fileToSend.c_str());   // convert back to LPCSTR to use with CreateFile
-// //cout << cl->cFilePath[j] << endl;
-//     //return cl;
-// }
-
 HANDLE mCreateFile(HANDLE fHandle, const char* fPath){
     fHandle = CreateFile(
                 fPath, // file to open
@@ -317,10 +255,6 @@ HANDLE mCreateFile(HANDLE fHandle, const char* fPath){
     else
     {
         //cout << "CreateFile successful." << endl;
-
-        //md5
-        // file_size = get_size_by_fd(file_descript);
-        // printf("file size:\t%lu\n", file_size);
     }
 
     return fHandle;
@@ -339,11 +273,12 @@ void mReadAndSend(HANDLE fHandle, Client cl){
 
     else{
         //cout << "ReadFile successful." << endl;
-        //cout << client[i].id << ": " << client[i].fileName[j] << endl;
-     
+        
+        cout << "File sent." << endl;
+        CalcChecksum(cl);
+
         iSend = send(cl.TCPClientSocket, cl.SenderBuffer, cl.iSenderBuffer, 0);
-        cout << "DATA SENT: " << cl.id << " " << cl.SenderBuffer << endl;
-        system("pause");
+        cout << endl;
 
         if(iSend == SOCKET_ERROR)
         {
@@ -357,37 +292,9 @@ void mReadAndSend(HANDLE fHandle, Client cl){
     {
         // append NULL character
         cl.SenderBuffer[dwBytesRead+1]='\0';
-        //cout << "String read from file has " << dwBytesRead << " bytes" << endl;
     }
     else
     {
         cout << "No data read from file" << endl;
     }
 }
-
-
-
-// ref: https://stackoverflow.com/questions/41304891/how-to-count-the-number-of-files-in-a-directory-using-standard
-// size_t numFilesInDirectory(fs::path path)
-// {
-//     using fs::directory_iterator;
-//     return std::distance(directory_iterator(path), directory_iterator{});
-// }
-
-
-// ref: https://stackoverflow.com/questions/1220046/how-to-get-the-md5-hash-of-a-file-in-c
-// Print the MD5 sum as hex-digits.
-// void print_md5_sum(unsigned char* md)
-// {
-//     int i;
-//     for(i=0; i <MD5_DIGEST_LENGTH; i++) {
-//             printf("%02x",md[i]);
-//     }
-// }
-
-// Get the size of the file by its file descriptor
-// unsigned long get_size_by_fd(int fd) {
-//     struct stat statbuf;
-//     if(fstat(fd, &statbuf) < 0) exit(-1);
-//     return statbuf.st_size;
-// }

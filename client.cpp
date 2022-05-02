@@ -28,8 +28,8 @@ using namespace std;
 // globals
 struct Client
 {
-	sockaddr_in TCPServerAdd;           
-	SOCKET TCPClientSocket;		        
+    sockaddr_in TCPServerAdd;
+    SOCKET TCPClientSocket;        
     string id = "SOCKET";               // used for printing output
     vector<string> fileName;            // files to send over socket
     vector<const char*> cFilePath;      // LPCSTR file path to use with Winsock functions
@@ -69,12 +69,10 @@ int main(int argc, char **argv)
     }
 
     // Manage command-line params
-    // file path
     string origFilePath = filePath;             // hold original path, no asterisk
     filePath.append("*");                       // add asterisk, need for FindFirstFile()
     const char* cfilePath = filePath.c_str();   // convert to LPCSTR to work with Winsock functions
-    // concurrency
-    client.resize(concurrency); // concurrency = num of client sockets
+    client.resize(concurrency);                 // concurrency = num of client sockets
 
     /* ref: https://www.youtube.com/watch?v=TP5Q0cs6uNo&t=1228s */
     cout << "\t\t-------- TCP CLIENT --------" << endl;
@@ -94,9 +92,9 @@ int main(int argc, char **argv)
     // Step 2: Create sockets
     int k = 0; // for client ID values
     for(int i = 0; i < client.size(); i++){
-        client[i].id += to_string(++k); // ID clients for result analysis
-        client[i].TCPClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // init client socket 
-        if(client[i].TCPClientSocket == INVALID_SOCKET){ // error check
+        client[i].id += to_string(++k);                                         // ID clients for result analysis
+        client[i].TCPClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);  // init client socket 
+        if(client[i].TCPClientSocket == INVALID_SOCKET){                        // error check
             cout << "TCP client " << client[i].id << " creation failed with error " << WSAGetLastError() << endl;
             return 1;
         }
@@ -105,9 +103,9 @@ int main(int argc, char **argv)
 
     // Step 3: Fill server socket info
     for(int i = 0; i < client.size(); i++){
-        client[i].TCPServerAdd.sin_family = AF_INET; // IPv4 address family
-        client[i].TCPServerAdd.sin_addr.s_addr = inet_addr(DEFAULT_ADDR); // set server address
-        client[i].TCPServerAdd.sin_port = htons(DEFAULT_PORT); // bind to port, convert from host-byte-order to network-byte-order
+        client[i].TCPServerAdd.sin_family = AF_INET;                        // IPv4 address family
+        client[i].TCPServerAdd.sin_addr.s_addr = inet_addr(DEFAULT_ADDR);   // set server address
+        client[i].TCPServerAdd.sin_port = htons(DEFAULT_PORT);              // bind to port, convert from host-byte-order to network-byte-order
     }
 
     // Step 4: Connect clients to server socket

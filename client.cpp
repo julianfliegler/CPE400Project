@@ -19,11 +19,19 @@
 #include <MSWSock.h>
 #include <cmath>
 //#include <filesystem>
-		
 
-#define DEFAULT_BUFLEN 8096
+// #include <sys/types.h>
+// #include <sys/stat.h>
+// #include <sys/mman.h>
+// #include <fcntl.h>
+// #include <openssl/md5.h>
+
+#define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 5050
 #define DEFAULT_ADDR "127.0.0.1"
+
+// #define MD5_DIGEST_LENGTH 512
+// unsigned char result[MD5_DIGEST_LENGTH];
 
 using namespace std;
 //namespace fs = std::filesystem;
@@ -32,9 +40,9 @@ struct Client
 {
 	sockaddr_in TCPServerAdd;   // addr of server
 	SOCKET TCPClientSocket;		// client socket
-    string id = "SOCKET";       
-    string fileName;            // associated file
-    const char* cfileToSend;    // LPCSTR version of file to use with Winsock functions
+    string id = "SOCKET";
+    vector<string> fileName;            // associated file
+    vector<const char*> cFilePath;    // LPCSTR file path to use with Winsock functions
     char SenderBuffer[DEFAULT_BUFLEN];
     int iSenderBuffer = sizeof(SenderBuffer) + 1;
     int checksum;
@@ -44,11 +52,16 @@ struct Client
 int CalcChecksum(Client c);
 bool isInt(float k);
 //size_t numFilesInDirectory(fs::path path);
+//void print_md5_sum(unsigned char* md);
+void handleFilePath(string fPath, Client *cl, int j);
+HANDLE mCreateFile(HANDLE fHandle, const char* fPath);
+void mReadAndSend(HANDLE fHandle, Client cl);
+
+int concurrency = 1;
+vector<Client> client;
 
 int main(int argc, char **argv)
-{   
-    int concurrency = 1;
-    vector<Client> client;
+{
     string filePath;
 
     // TODO: check if concurrency greater than number of files (out of box?)
@@ -62,7 +75,7 @@ int main(int argc, char **argv)
         concurrency = 1;
         filePath = argv[1];
     }
-    else if(atoi(argv[2]) < 1 || !isInt(atof(argv[2]))){ 
+    else if(atoi(argv[2]) < 1 || !isInt(atof(argv[2]))){
         cout << "Error: Concurrency must be positive integer." << endl;
         return 1;
     }
@@ -73,8 +86,9 @@ int main(int argc, char **argv)
     cout << "\t\t-------- TCP CLIENT --------" << endl;
     cout << endl;
 
-    client.resize(concurrency); 
+    client.resize(concurrency);
 
+    // manage file path
     string origFilePath = filePath;                // hold original path, no asterisk
     filePath.append("*");                       // add asterisk for FindFirstFile
     const char* cfilePath = filePath.c_str();   // convert to LPCSTR to work with C++ ftns
@@ -87,7 +101,7 @@ int main(int argc, char **argv)
     int iCloseSocket;
 
     int iConnect;
-    int iSend = 0;
+    //int iSend = 0;
 
     // Step 1: WSA Startup
     err = WSAStartup(wVersionRequested, &wsaData);
@@ -127,95 +141,108 @@ int main(int argc, char **argv)
 
     // Step 5: Get files from folder
     /* ref: https://www.cplusplus.com/forum/general/85870/ */
-    string data;  
+    string data;
     HANDLE hFind;
-    WIN32_FIND_DATAA FindFileData; 
-    int i = 0;
+    WIN32_FIND_DATAA FindFileData;
+    int i = 0, j = 0;
+
+    //int file_descript;
 
     hFind = FindFirstFileA(cfilePath, &FindFileData);
-    if (hFind != INVALID_HANDLE_VALUE) 
+    if (hFind != INVALID_HANDLE_VALUE)
     {
         do
-        {
-            if (FindFileData.dwFileAttributes != FILE_ATTRIBUTE_DIRECTORY){
-                client[i].fileName = FindFileData.cFileName;
-                // data += FindFileData.cFileName;
-                // data += '\n'; 
-                i++;
-            } 
-        } while( FindNextFileA( hFind, &FindFileData ) && i < client.size());  
-        FindClose( hFind );  
+        {  
+            i = 0;
+            
+            while(i < concurrency)
+            {
+                if (FindFileData.dwFileAttributes != FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    client[i].fileName.push_back(FindFileData.cFileName);
+                    cout << client[i].id << " has file: " << client[i].fileName[j] << endl;
+                    i++;
+                }
+
+                FindNextFileA(hFind, &FindFileData);
+                if(GetLastError() == ERROR_NO_MORE_FILES)
+                {
+                    cout << "No more files in source folder." << endl;
+                    break;
+                }
+            }
+
+            j++;
+
+        } while(GetLastError() != ERROR_NO_MORE_FILES); // until no more files
+        FindClose(hFind);
     }
     //cout << data;
-    //system("PAUSE"); 
-    
+    //system("PAUSE");
+
+    string tmp = to_string(concurrency);
+    char const *cCon = tmp.c_str();
+    cout << cCon << endl;
+
+
+    int iSend = send(client[0].TCPClientSocket, cCon, sizeof(cCon), 0);
+    cout << "DATA SENT: " << cCon << endl;
+    //system("pause");
+
+    if(iSend == SOCKET_ERROR)
+    {
+        cout << "Client send failed with error " << WSAGetLastError() << endl;
+        exit(1);
+    }
+
     HANDLE hFile;
     string fileToSend;  // temp container to easily perform str concat
-    DWORD dwBytesRead = 0;
-    
-    for(int i=0; i<client.size(); i++)
+
+    for(int i = 0; i < client.size(); i++)
     {
-        fileToSend = "";
-        fileToSend += origFilePath;            // add file path
-        fileToSend += client[i].fileName;   // add file name
-        client[i].cfileToSend = fileToSend.c_str();   // convert back to LPCSTR to use with CreateFile
-
-        dwBytesRead = 0;
-        hFile = CreateFile(
-                client[i].cfileToSend, // file to open
-                GENERIC_READ,          // open for reading
-                FILE_SHARE_READ,       // share for reading
-                NULL,                  // default security
-                OPEN_EXISTING,         // existing file only
-                FILE_ATTRIBUTE_NORMAL, // normal file
-                NULL);                 // no attr. template
-
-        if (hFile == INVALID_HANDLE_VALUE)
+        for(int j = 0; j < client[i].fileName.size(); j++)
         {
-            cout << "CreateFile failed with error " << WSAGetLastError() << endl;
-            return 1;
-        }
-        else
-            //cout << "CreateFile successful." << endl;
+            //cout << client[i].fileName.size() << endl;
 
-        if(ReadFile(hFile, client[i].SenderBuffer, client[i].iSenderBuffer, &dwBytesRead, NULL) == FALSE)
-        {
-            cout << "ReadFile failed with error " << WSAGetLastError() << endl;
-            CloseHandle(hFile);
-            return 1;
-        }
-        else
-            //cout << "ReadFile successful." << endl;
+            //handleFilePath(origFilePath, &client[i], j);
+            
+            fileToSend = "";
+            fileToSend += origFilePath;            // add file path
+            fileToSend += client[i].fileName[j];   // add file name
+            client[i].cFilePath.push_back(fileToSend.c_str());   // convert back to LPCSTR to use with CreateFile
 
-        if (dwBytesRead > 0)
-        {
-            // append NULL character
-            client[i].SenderBuffer[dwBytesRead+1]='\0';
-            //cout << "String read from file has " << dwBytesRead << " bytes" << endl;
-        }
-        else
-        {
-            cout << "No data read from file" << endl;
-        }
-    }  
+            //cout << client[i].cFilePath[j] << endl;
 
+            hFile = mCreateFile(hFile, client[i].cFilePath[j]);
+            mReadAndSend(hFile, client[i]);
+        }
+        memset(client[i].SenderBuffer, 0, sizeof client[i].SenderBuffer); // empty buffer
+    }
 
+    //md5
+    // file_buffer = mmap(0, file_size, PROT_READ, MAP_SHARED, file_descript, 0);
+    // MD5((unsigned char*) file_buffer, file_size, result);
+    // munmap(file_buffer, file_size);
+    // print_md5_sum(result);
+    // printf("  %s\n", argv[1]);
 
     // Step 6: Send data to server
-    int index = 0;
-    do{ 
-        // calc checksum
-        CalcChecksum(client[index]);
-        iSend = send(client[index].TCPClientSocket, client[index].SenderBuffer, client[index].iSenderBuffer, 0);
-        //cout << "isend = " << iSend << endl;
-        //cout << "DATA SENT: " << client[index].SenderBuffer << endl;
-        //system("PAUSE");
-        if(iSend == SOCKET_ERROR){
-            cout << "Client send failed with error " << WSAGetLastError() << endl;
-            return 1;
-        }
-        index++;
-    } while(iSend > 0 && index < client.size());
+    // int index = 0;
+    // do{
+    //     // calc checksum
+    //     //CalcChecksum(client[index]);
+
+    //     // iSend = send(client[index].TCPClientSocket, client[index].SenderBuffer, client[index].iSenderBuffer, 0);
+
+    //     //cout << "isend = " << iSend << endl;
+    //     //cout << "DATA SENT: " << client[index].SenderBuffer << endl;
+    //     //system("PAUSE");
+
+     
+    //     index++;
+
+    // } while(iSend > 0);
+
     cout << "Data sent successfully." << endl;
 
     // Step 7: Close socket
@@ -235,7 +262,7 @@ int main(int argc, char **argv)
         return 1;
     }
     cout << "Cleanup successful." << endl;
-    
+
     return 0;
 }
 
@@ -249,7 +276,7 @@ int CalcChecksum(Client c){
 
     // take 2's complement
     // checksum =~ checksum;   // bitwise inversion
-    // checksum++;             
+    // checksum++;
 
     cout << "checksum = " << checksum << endl;
     return checksum;
@@ -261,9 +288,106 @@ bool isInt(float k)
   return floor(k) == k;
 }
 
+// void handleFilePath(string fPath, Client *cl, int j){
+//     string fileToSend;  // temp container to easily perform str concat
+    
+//     fileToSend = "";
+//     fileToSend += fPath;            // add file path
+//     fileToSend += cl->fileName[j];   // add file name
+//     cl->cFilePath.push_back(fileToSend.c_str());   // convert back to LPCSTR to use with CreateFile
+// //cout << cl->cFilePath[j] << endl;
+//     //return cl;
+// }
+
+HANDLE mCreateFile(HANDLE fHandle, const char* fPath){
+    fHandle = CreateFile(
+                fPath, // file to open
+                GENERIC_READ,          // open for reading
+                FILE_SHARE_READ,       // share for reading
+                NULL,                  // default security
+                OPEN_EXISTING,         // existing file only
+                FILE_ATTRIBUTE_NORMAL, // normal file
+                NULL);                 // no attr. template
+
+    if (fHandle == INVALID_HANDLE_VALUE)
+    {
+        cout << "CreateFile failed with error " << WSAGetLastError() << endl;
+        exit(1);
+    }
+    else
+    {
+        //cout << "CreateFile successful." << endl;
+
+        //md5
+        // file_size = get_size_by_fd(file_descript);
+        // printf("file size:\t%lu\n", file_size);
+    }
+
+    return fHandle;
+}
+
+void mReadAndSend(HANDLE fHandle, Client cl){
+    int iSend = 0;
+    DWORD dwBytesRead = 0;
+
+    if(ReadFile(fHandle, cl.SenderBuffer, cl.iSenderBuffer, &dwBytesRead, NULL) == FALSE)
+    {
+        cout << "ReadFile failed with error " << WSAGetLastError() << endl;
+        CloseHandle(fHandle);
+        exit(1);
+    }
+
+    else{
+        //cout << "ReadFile successful." << endl;
+        //cout << client[i].id << ": " << client[i].fileName[j] << endl;
+     
+        iSend = send(cl.TCPClientSocket, cl.SenderBuffer, cl.iSenderBuffer, 0);
+        cout << "DATA SENT: " << cl.id << " " << cl.SenderBuffer << endl;
+        system("pause");
+
+        if(iSend == SOCKET_ERROR)
+        {
+            cout << "Client send failed with error " << WSAGetLastError() << endl;
+            exit(1);
+        }
+
+    }
+ 
+    if (dwBytesRead > 0)
+    {
+        // append NULL character
+        cl.SenderBuffer[dwBytesRead+1]='\0';
+        //cout << "String read from file has " << dwBytesRead << " bytes" << endl;
+    }
+    else
+    {
+        cout << "No data read from file" << endl;
+    }
+}
+
+
+
 // ref: https://stackoverflow.com/questions/41304891/how-to-count-the-number-of-files-in-a-directory-using-standard
 // size_t numFilesInDirectory(fs::path path)
 // {
 //     using fs::directory_iterator;
 //     return std::distance(directory_iterator(path), directory_iterator{});
+// }
+
+
+// ref: https://stackoverflow.com/questions/1220046/how-to-get-the-md5-hash-of-a-file-in-c
+// Print the MD5 sum as hex-digits.
+// void print_md5_sum(unsigned char* md)
+// {
+//     int i;
+//     for(i=0; i <MD5_DIGEST_LENGTH; i++) {
+//             printf("%02x",md[i]);
+//     }
+// }
+
+// Get the size of the file by its file descriptor
+// unsigned long get_size_by_fd(int fd) {
+//     struct stat statbuf;
+//     if(fstat(fd, &statbuf) < 0) exit(-1);
+//     return statbuf.st_size;
 // }

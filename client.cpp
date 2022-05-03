@@ -6,6 +6,8 @@ Date:    2 May 2022
 ===============================================
 */
 
+// works, but want to try to impl md5 
+
 #undef UNICODE                  // undefine Unicode (for CreateFile())
 
 #define WIN32_LEAN_AND_MEAN     // exclude rarely used Windows headers
@@ -167,6 +169,7 @@ int main(int argc, char **argv)
 
             // Step 6: Read and send 
             ReadAndSend(hFile, client[i]); // read files into buffer, send over socket to server
+            system("pause");
         }
         memset(client[i].SenderBuffer, 0, sizeof(client[i].SenderBuffer)); // empty buffer
     }
@@ -223,11 +226,13 @@ void ReadAndSend(HANDLE fHandle, Client cl){
         exit(1);
     }
     else{
-        cout << "File sent." << endl;
-        CalcChecksum(cl);
+        //cout << "File sent." << endl;
+        //CalcChecksum(cl);
 
         // send file to server
         iSend = send(cl.TCPClientSocket, cl.SenderBuffer, cl.iSenderBuffer, 0); 
+        cout << cl.SenderBuffer << endl; //debug
+        CalcChecksum(cl);
         if(iSend == SOCKET_ERROR)
         {
             cout << "Client send failed with error " << WSAGetLastError() << endl;

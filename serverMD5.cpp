@@ -194,6 +194,7 @@ DWORD WINAPI MyRecv(LPVOID lpParameter){
     }
 }
 
+/* ref: https://stackoverflow.com/questions/13256446/compute-md5-hash-value-by-c-winapi */
 char* GetChecksum(char* data, DWORD *result)
 {
     DWORD dwStatus = 0;

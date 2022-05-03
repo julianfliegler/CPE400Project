@@ -1,12 +1,12 @@
 /*
-===============================================
+==========================
 Title:   server.cpp
-Authors: Julian Fliegler, Allison Rose Johnson
+Authors: Julian Fliegler
 Date:    2 May 2022
-===============================================
+==========================
 */
 
-// trying to implement md5 checksum
+// implement md5 checksum at file level
 
 #define WIN32_LEAN_AND_MEAN     // exclude rarely used Windows headers
 #define _WIN32_WINNT 0x0501     // version at least Windows XP
@@ -20,7 +20,7 @@ Date:    2 May 2022
 //#include <process.h>
 #include <time.h> // _strtime
 
-#define DEFAULT_BUFLEN 512
+#define DEFAULT_BUFLEN 1024
 #define DEFAULT_PORT 5050
 #define DEFAULT_ADDR "127.0.0.1"
 
@@ -36,9 +36,8 @@ Date:    2 May 2022
 // #define HP_HASHVAL 0x0002
 
 // prototypes
-int CalcChecksum(char buffer[]);
 DWORD WINAPI MyRecv(LPVOID lpParameter);
-DWORD getChecksum(char rBuffer[]);
+char* GetChecksum(char* data, DWORD *result);
 
 using namespace std;
 
@@ -164,7 +163,7 @@ DWORD WINAPI MyRecv(LPVOID lpParameter){
     
     // Receive data.
     int iRecv = SOCKET_ERROR;
-    char RecvBuffer[1024] = "";
+    char RecvBuffer[DEFAULT_BUFLEN] = "";
     char TimeBuffer[128];
 
     while(1)
@@ -173,8 +172,13 @@ DWORD WINAPI MyRecv(LPVOID lpParameter){
         ZeroMemory(RecvBuffer, sizeof(RecvBuffer));
 
         iRecv = recv(acceptSocket, RecvBuffer, sizeof(RecvBuffer), 0);
-        cout << TimeBuffer << " Client sent: " << RecvBuffer << endl;
-        CalcChecksum(RecvBuffer);
+        if(strlen(RecvBuffer) > 1){ // don't calc checksum if data still sending
+            cout << strlen(RecvBuffer) << endl; // debug
+            cout << TimeBuffer << " Client sent: " << RecvBuffer << endl;
+            GetChecksum(RecvBuffer, 0);
+        }
+        //CalcChecksum(RecvBuffer);
+        //getChecksum(cBuffer);
         cout << endl;
 
         if (iRecv == 0){
@@ -184,133 +188,71 @@ DWORD WINAPI MyRecv(LPVOID lpParameter){
         }    
         else if (iRecv == -1)
         {
-            // if(WSAGetLastError() == WSAEMSGSIZE) // client has more data to send 
-            // {
-            //     cout << "continue" << endl;
-            //     continue; // iterate again to get more data
-            // } 
-            // else{
-                // some other error
-                cout << "Server receive failed with error " << WSAGetLastError() << endl;
-                return 0;
-            //}
+            cout << "Server receive failed with error " << WSAGetLastError() << endl;
+            return 0;
         }
     }
 }
-        
-int CalcChecksum(char buffer[DEFAULT_BUFLEN]){
-    // variables
-    int count;
-    int Sum = 0;
-    // checks if the count is less than te default buffer 
-    // adds the total sum
-    //  switches the sums's sign 
-    for (count = 0; count < DEFAULT_BUFLEN; count++)
-        Sum = Sum + buffer[count];
-  
-    cout << "checksum = " << Sum << endl;
-    // returns sum 
-    return (Sum );
-}
 
-DWORD getChecksum(char rBuffer[])
+char* GetChecksum(char* data, DWORD *result)
 {
     DWORD dwStatus = 0;
-    BOOL bResult = FALSE;
-    HCRYPTPROV hProv = 0;
-    HCRYPTHASH hHash = 0;
-    HANDLE hFile = NULL;
-    BYTE rgbFile[DEFAULT_BUFLEN];
-    DWORD cbRead = 0;
-    BYTE rgbHash[MD5LEN];
-    DWORD cbHash = 0;
-    CHAR rgbDigits[] = "0123456789abcdef";
-    //LPCSTR filename="filename.txt";
+    DWORD cbHash = 16;
+    int i = 0;
+    HCRYPTPROV cryptProv;
+    HCRYPTHASH cryptHash;
+    BYTE hash[16];
+    char *hex = (char*)"0123456789abcdef";
+    char *strHash;
+    strHash = (char*)malloc(500);
+    memset(strHash, '\0', 500);
 
-    // Logic to check usage goes here.
-
-    // hFile = CreateFile(filename,
-    //     GENERIC_READ,
-    //     FILE_SHARE_READ,
-    //     NULL,
-    //     OPEN_EXISTING,
-    //     FILE_FLAG_SEQUENTIAL_SCAN,
-    //     NULL);
-
-    // if (INVALID_HANDLE_VALUE == hFile)
-    // {
-    //     dwStatus = GetLastError();
-    //     printf("Error opening file %s\nError: %d\n", filename, 
-    //         dwStatus); 
-    //     return dwStatus;
-    // }
-
-    // Get handle to the crypto provider
-    if (!CryptAcquireContextA(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+    if (!CryptAcquireContext(&cryptProv, NULL, MS_DEF_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
     {
         dwStatus = GetLastError();
-        printf("CryptAcquireContext failed: %d\n", dwStatus); 
-        CloseHandle(hFile);
-        return dwStatus;
+        printf("CryptAcquireContext failed: %d\n", dwStatus);
+        *result = dwStatus;
+        return NULL;
     }
 
-    if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash))
+    if (!CryptCreateHash(cryptProv, CALG_MD5, 0, 0, &cryptHash))
     {
         dwStatus = GetLastError();
-        printf("CryptAcquireContext failed: %d\n", dwStatus); 
-        CloseHandle(hFile);
-        CryptReleaseContext(hProv, 0);
-        return dwStatus;
+        printf("CryptCreateHash failed: %d\n", dwStatus);
+        CryptReleaseContext(cryptProv, 0);
+        *result = dwStatus;
+        return NULL;
     }
 
-    while (bResult = ReadFile(hFile, rBuffer, DEFAULT_BUFLEN, &cbRead, NULL))
-    {
-        if (0 == cbRead)
-        {
-            break;
-        }
-
-        if (!CryptHashData(hHash, rgbFile, cbRead, 0))
-        {
-            dwStatus = GetLastError();
-            printf("CryptHashData failed: %d\n", dwStatus); 
-            CryptReleaseContext(hProv, 0);
-            CryptDestroyHash(hHash);
-            CloseHandle(hFile);
-            return dwStatus;
-        }
-    }
-
-    if (!bResult)
+    if (!CryptHashData(cryptHash, (BYTE*)data, strlen(data), 0))
     {
         dwStatus = GetLastError();
-        printf("ReadFile failed: %d\n", dwStatus); 
-        CryptReleaseContext(hProv, 0);
-        CryptDestroyHash(hHash);
-        CloseHandle(hFile);
-        return dwStatus;
+        printf("CryptHashData failed: %d\n", dwStatus);
+        CryptReleaseContext(cryptProv, 0);
+        CryptDestroyHash(cryptHash);
+        *result = dwStatus;
+        return NULL;
     }
 
-    cbHash = MD5LEN;
-    if (CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0))
-    {
-        printf("MD5 hash of file [filename] is: ");
-        for (DWORD i = 0; i < cbHash; i++)
-        {
-            printf("%c%c", rgbDigits[rgbHash[i] >> 4],
-                rgbDigits[rgbHash[i] & 0xf]);
-        }
-        printf("\n");
-    }
-    else
+    if (!CryptGetHashParam(cryptHash, HP_HASHVAL, hash, &cbHash, 0))
     {
         dwStatus = GetLastError();
-        printf("CryptGetHashParam failed: %d\n", dwStatus); 
+        printf("CryptGetHashParam failed: %d\n", dwStatus);
+        CryptReleaseContext(cryptProv, 0);
+        CryptDestroyHash(cryptHash);
+        *result = dwStatus;
+        return NULL;
     }
 
-    CryptDestroyHash(hHash);
-    CryptReleaseContext(hProv, 0);
-    CloseHandle(hFile);
+    for (i = 0; i < cbHash; i++)
+    {
+        printf("%c%c", hex[hash[i] >> 4], hex[hash[i] & 0xf]);
+        strHash[i * 2] = hex[hash[i] >> 4];
+        strHash[(i * 2) + 1] = hex[hash[i] & 0xF];
+    }
 
-    return dwStatus; 
+    CryptDestroyHash(cryptHash);
+    CryptReleaseContext(cryptProv, 0);
+
+    return strHash;
 }

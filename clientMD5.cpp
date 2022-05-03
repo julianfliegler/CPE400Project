@@ -1,9 +1,9 @@
 /*
-===============================================
+==========================
 Title:   client.cpp
-Authors: Julian Fliegler, Allison Rose Johnson
+Authors: Julian Fliegler
 Date:    2 May 2022
-===============================================
+==========================
 */
 
 #undef UNICODE                  // undefine Unicode (for CreateFile())
@@ -11,7 +11,7 @@ Date:    2 May 2022
 #define WIN32_LEAN_AND_MEAN     // exclude rarely used Windows headers
 #define _WIN32_WINNT 0x0501     // version at least Windows XP
 
-#define DEFAULT_BUFLEN 512
+#define DEFAULT_BUFLEN 1024
 #define DEFAULT_PORT 5050
 #define DEFAULT_ADDR "127.0.0.1"
 
@@ -53,11 +53,9 @@ vector<Client> client;
 
 // prototypes
 HANDLE MyCreateFile(HANDLE fHandle, const char* fPath);
-void ReadAndSend(HANDLE fHandle, Client cl, LPCSTR filename);
+void ReadAndSend(HANDLE fHandle, Client cl);
 bool IsInt(float k);    // used for validating command-line params
-int CalcChecksum(Client c);
-
-DWORD getChecksum(HANDLE hFile);
+DWORD GetChecksum(HANDLE hFile, const char* fPath);
 
 int main(int argc, char **argv)
 {
@@ -179,7 +177,8 @@ int main(int argc, char **argv)
             hFile = MyCreateFile(hFile, client[i].cFilePath[j]); // open file for reading
 
             // Step 6: Read and send 
-            ReadAndSend(hFile, client[i], client[i].cFilePath[j]); // read files into buffer, send over socket to server
+            ReadAndSend(hFile, client[i]); // read files into buffer, send over socket to server
+            GetChecksum(hFile, client[i].cFilePath[j]);
             system("pause");
         }
         memset(client[i].SenderBuffer, 0, sizeof(client[i].SenderBuffer)); // empty buffer
@@ -223,35 +222,33 @@ HANDLE MyCreateFile(HANDLE fHandle, const char* fPath){
         cout << "CreateFile failed with error " << WSAGetLastError() << endl;
         exit(1);
     }
-    getChecksum(fHandle);
     return fHandle;
 }
 
-void ReadAndSend(HANDLE fHandle, Client cl, LPCSTR filename){
+void ReadAndSend(HANDLE fHandle, Client cl){
     int iSend = 0;
     DWORD dwBytesRead = 0;
 
-    // if(ReadFile(fHandle, cl.SenderBuffer, cl.iSenderBuffer, &dwBytesRead, NULL) == FALSE)
-    // {
-    //     cout << "ReadFile failed with error " << WSAGetLastError() << endl;
-    //     CloseHandle(fHandle);
-    //     exit(1);
-    // }
-    // else{
-        //cout << "File sent." << endl;
+    if(ReadFile(fHandle, cl.SenderBuffer, cl.iSenderBuffer, &dwBytesRead, NULL) == FALSE)
+    {
+        cout << "ReadFile failed with error " << WSAGetLastError() << endl;
+        CloseHandle(fHandle);
+        exit(1);
+    }
+    else{
+        cout << "File sent." << endl;
         //CalcChecksum(cl);
 
         // send file to server
         iSend = send(cl.TCPClientSocket, cl.SenderBuffer, cl.iSenderBuffer, 0); 
         cout << cl.SenderBuffer << endl; //debug
-        CalcChecksum(cl);
+        //CalcChecksum(cl);
         if(iSend == SOCKET_ERROR)
         {
             cout << "Client send failed with error " << WSAGetLastError() << endl;
             exit(1);
         }
-        cout << endl;
-   // }
+    }
  
     if (dwBytesRead > 0)
     {
@@ -269,21 +266,7 @@ bool IsInt(float k)
   return floor(k) == k;
 }
 
-int CalcChecksum(Client c){
-    // variables
-    int count;
-    int Sum = 0;
-    // checks if the count is less than te default buffer 
-    // adds the total sum
-    for (count = 0; count < sizeof(c.SenderBuffer); count++)
-        Sum = Sum + c.SenderBuffer[count];
-
-    cout << "checksum = " << Sum << endl;
-    // returns sum
-    return (Sum);
-}
-
-DWORD getChecksum(HANDLE hFile)
+DWORD GetChecksum(HANDLE hFile, const char* fPath)
 {
     DWORD dwStatus = 0;
     BOOL bResult = FALSE;
@@ -299,21 +282,20 @@ DWORD getChecksum(HANDLE hFile)
 
     // Logic to check usage goes here.
 
-    // hFile = CreateFile(filename,
-    //     GENERIC_READ,
-    //     FILE_SHARE_READ,
-    //     NULL,
-    //     OPEN_EXISTING,
-    //     FILE_FLAG_SEQUENTIAL_SCAN,
-    //     NULL);
+    hFile = CreateFile(fPath,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_SEQUENTIAL_SCAN,
+        NULL);
 
-    // if (INVALID_HANDLE_VALUE == hFile)
-    // {
-    //     dwStatus = GetLastError();
-    //     printf("Error opening file %s\nError: %d\n", filename, 
-    //         dwStatus); 
-    //     return dwStatus;
-    // }
+    if (INVALID_HANDLE_VALUE == hFile)
+    {
+        dwStatus = GetLastError();
+        cout << "Error: " << dwStatus << " opening file [filename]" << endl;
+        return dwStatus;
+    }
 
     // Get handle to the crypto provider
     if (!CryptAcquireContextA(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
@@ -364,13 +346,16 @@ DWORD getChecksum(HANDLE hFile)
     cbHash = MD5LEN;
     if (CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0))
     {
-        printf("MD5 hash of file [filename] is: ");
+        //cout << "MD5 hash of " << cl.fileName << "is " << 
+        //printf("MD5 hash of file [filename] is: ");
+        cout << "MD5 hash: ";
         for (DWORD i = 0; i < cbHash; i++)
         {
             printf("%c%c", rgbDigits[rgbHash[i] >> 4],
                 rgbDigits[rgbHash[i] & 0xf]);
         }
         printf("\n");
+        cout << endl;
     }
     else
     {
